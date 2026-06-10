@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let chatSessions = [];
   let isDarkMode = false;
   let geminiApiKey = "";
+  let groqApiKey = "";
   let isAiMode = true;
 
   // DOM Elements
@@ -46,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
     isDarkMode = localStorage.getItem("ayur_dark_mode") === "true";
     isAiMode = localStorage.getItem("ayur_ai_mode") !== "false";
     geminiApiKey = localStorage.getItem("ayur_gemini_key") || "";
+    groqApiKey = localStorage.getItem("ayur_groq_key") || "";
 
     // Apply theme
     if (isDarkMode) {
@@ -160,20 +162,31 @@ document.addEventListener("DOMContentLoaded", () => {
       const response = await fetch(".env");
       if (response.ok) {
         const text = await response.text();
-        const match = text.match(/API_KEY\s*=\s*([^\s#]+)/);
-        if (match) {
-          const key = match[1].trim();
+        
+        const geminiMatch = text.match(/API_KEY\s*=\s*([^\s#]+)/);
+        if (geminiMatch) {
+          const key = geminiMatch[1].trim();
           if (key) {
             geminiApiKey = key;
             localStorage.setItem("ayur_gemini_key", geminiApiKey);
             if (apiKeyInput) apiKeyInput.value = geminiApiKey;
-            updateStatusIndicator();
-            return true;
           }
         }
+
+        const groqMatch = text.match(/GROQ_API_KEY\s*=\s*([^\s#]+)/);
+        if (groqMatch) {
+          const key = groqMatch[1].trim();
+          if (key) {
+            groqApiKey = key;
+            localStorage.setItem("ayur_groq_key", groqApiKey);
+          }
+        }
+
+        updateStatusIndicator();
+        return true;
       }
     } catch (e) {
-      console.warn("Could not load API key from .env file:", e);
+      console.warn("Could not load API keys from .env file:", e);
     }
     return false;
   }
@@ -520,7 +533,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Local Database Matcher ---
-  function matchLocalRemedies(query) {
+  function findBestLocalMatch(query) {
     const normalized = query.toLowerCase();
 
     // We will assign a match score to each ailment
@@ -582,9 +595,16 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     if (highestScore > 0 && bestMatch) {
-      return formatAilmentMarkdown(bestMatch);
+      return bestMatch;
     }
+    return null;
+  }
 
+  function matchLocalRemedies(query) {
+    const match = findBestLocalMatch(query);
+    if (match) {
+      return formatAilmentMarkdown(match);
+    }
     return "I don't have verified information about that symptom. Please consult a doctor.";
   }
 
@@ -612,11 +632,32 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // --- Gemini API Handler ---
-  async function generateGeminiResponse(userMessage) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
+  // --- Prompt Builder with RAG context ---
+  function getSystemInstruction(localMatch) {
+    let context = "";
+    if (localMatch) {
+      context = `You have access to the following verified remedy from the local database:
+Ailment: ${localMatch.ailment}
+Remedies:
+${localMatch.remedies.map((r, i) => `Remedy ${i+1}: ${r.name}
+Ingredients:
+${r.ingredients.map(ing => `* ${ing}`).join("\n")}
+Preparation:
+${r.preparation}
+Usage:
+${r.usage}`).join("\n\n")}
+When Not To Use:
+${localMatch.when_not_to_use}
+When To See A Doctor:
+${localMatch.see_doctor_if.map(c => `* ${c}`).join("\n")}
 
-    const systemInstruction = `You are an Ayurvedic Home Remedy Assistant.
-Your task is to suggest traditional, safe, and natural home remedies for minor ailments using common kitchen/household ingredients (e.g. Turmeric, Ginger, Honey, Tulsi, Ajwain, Jeera, Fennel, Aloe Vera, Coconut Oil, Salt, Lemon, Clove, Black Pepper).
+YOUR SOLE TASK is to present this remedy data in the required format. Do not add any new ingredients or modify the preparation/usage steps. Do not invent remedies.`;
+    } else {
+      context = `The user is asking about a symptom that is NOT verified in the local database. You must state clearly and politely that you do not have verified home remedies for this symptom in your database and advise them to consult a qualified healthcare professional. Do not recommend any home remedies.`;
+    }
+
+    return `You are an Ayurvedic Home Remedy Assistant.
+Your task is to suggest traditional, safe, and natural home remedies for minor ailments using common kitchen/household ingredients.
 
 Adhere strictly to these safety rules:
 1. If the user mentions any emergency or red-flag conditions (e.g. chest pain, breathing difficulty, severe/third-degree burns, sudden vision changes, severe pain, symptoms in children under 5, allergic reactions), immediately advise consulting a doctor.
@@ -637,13 +678,6 @@ Usage:
 [Detailed usage instructions]
 
 ### Remedy 2: [Name of Remedy]
-Ingredients:
-* [Ingredient 1]
-
-Preparation:
-...
-
-Usage:
 ...
 
 ### When Not To Use
@@ -654,7 +688,15 @@ Usage:
 * [Another red flag condition]
 
 ⚠️ Disclaimer:
-For informational purposes only. Not a substitute for medical advice.`;
+For informational purposes only. Not a substitute for medical advice.
+
+${context}`;
+  }
+
+  // --- Gemini API Handler ---
+  async function generateGeminiResponse(userMessage, localMatch) {
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
+    const systemInstruction = getSystemInstruction(localMatch);
 
     const requestBody = {
       contents: [
@@ -695,7 +737,51 @@ For informational purposes only. Not a substitute for medical advice.`;
       }
     } catch (err) {
       console.error("Gemini API Connection Error:", err);
-      throw new Error(`Failed to connect to AI server (${err.message || err}). If you are running the app by double-clicking index.html (file:// protocol), browser security restrictions (CORS) may block API requests. Please run the local server using 'run_server.bat' in the project directory, or check your internet connection and API key.`);
+      throw new Error(`Failed to connect to AI server (${err.message || err}).`);
+    }
+  }
+
+  // --- Groq API Handler ---
+  async function generateGroqResponse(userMessage, localMatch) {
+    const endpoint = "https://api.groq.com/openai/v1/chat/completions";
+    const systemInstruction = getSystemInstruction(localMatch);
+
+    const requestBody = {
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "system",
+          content: systemInstruction
+        },
+        {
+          role: "user",
+          content: userMessage
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 1000
+    };
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${groqApiKey}`
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Groq API Error details:", errorData);
+      throw new Error(`Groq API returned status ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      return data.choices[0].message.content;
+    } else {
+      throw new Error("Invalid Groq API response format");
     }
   }
 
@@ -733,17 +819,33 @@ For informational purposes only. Not a substitute for medical advice.`;
     const typingRow = appendTypingIndicator();
     let botReply = "";
 
+    const localMatch = findBestLocalMatch(inputMsg);
+
     try {
       if (isAiMode && geminiApiKey) {
-        botReply = await generateGeminiResponse(inputMsg);
+        try {
+          // Try Gemini first
+          botReply = await generateGeminiResponse(inputMsg, localMatch);
+        } catch (geminiError) {
+          console.warn("Gemini API failed, falling back to Groq...", geminiError);
+          if (groqApiKey) {
+            botReply = await generateGroqResponse(inputMsg, localMatch);
+          } else {
+            throw geminiError;
+          }
+        }
+      } else if (isAiMode && groqApiKey) {
+        // Direct Groq if only Groq key is set
+        botReply = await generateGroqResponse(inputMsg, localMatch);
       } else {
         // Offline Local Matching Mode
-        // Simulate a small thinking delay for natural conversational rhythm
         await new Promise(resolve => setTimeout(resolve, 800));
-        botReply = matchLocalRemedies(inputMsg);
+        botReply = localMatch ? formatAilmentMarkdown(localMatch) : "I don't have verified information about that symptom. Please consult a doctor.";
       }
     } catch (error) {
-      botReply = `⚠️ API Error: ${error.message}\n\n*Falling back to local database...*\n\n` + matchLocalRemedies(inputMsg);
+      console.warn("All LLM connections failed or unavailable, falling back to local DB:", error);
+      botReply = `⚠️ API Error: ${error.message}\n\n*Falling back to local database...*\n\n` + 
+                 (localMatch ? formatAilmentMarkdown(localMatch) : "I don't have verified information about that symptom. Please consult a doctor.");
     } finally {
       removeTypingIndicator(typingRow);
       appendMessageUI("bot", botReply);
