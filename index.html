@@ -179,6 +179,33 @@
         </div>
 
 
+        <!-- AI Provider Selection -->
+        <div class="setting-group">
+          <div class="setting-label">AI Engine Provider</div>
+          <div class="setting-description">Choose the AI brain for the chatbot (requires corresponding API key).</div>
+          <select id="ai-provider-select" style="width: 100%; margin-top: 8px; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font-body); font-size: 0.9rem; cursor: pointer; outline: none; transition: border-color var(--transition-speed);">
+            <option value="groq">Groq (Llama 3.3)</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="local">Local Database (Offline)</option>
+          </select>
+        </div>
+
+        <!-- API Keys Configuration -->
+        <div class="setting-group">
+          <div class="setting-label">API Keys Configuration</div>
+          <div class="setting-description">Enter your API keys below to enable dynamic AI. Keys are saved locally on your browser.</div>
+          
+          <div style="margin-top: 10px;">
+            <label class="setting-label" style="font-size: 0.8rem; display: block; margin-bottom: 4px; color: var(--text-secondary);">Groq API Key</label>
+            <input type="password" id="groq-key-input" placeholder="gsk_..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font-body); font-size: 0.9rem; outline: none; transition: border-color var(--transition-speed);">
+          </div>
+
+          <div style="margin-top: 10px;">
+            <label class="setting-label" style="font-size: 0.8rem; display: block; margin-bottom: 4px; color: var(--text-secondary);">Gemini API Key</label>
+            <input type="password" id="gemini-key-input" placeholder="Enter Gemini Key..." style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font-body); font-size: 0.9rem; outline: none; transition: border-color var(--transition-speed);">
+          </div>
+        </div>
+
         <!-- Export Conversations -->
         <div class="setting-group">
           <div class="setting-label">Export Conversation</div>
@@ -212,6 +239,7 @@
 
   </div>
 
+  <script src="config.js"></script>
   <script src="database.js"></script>
   <script src="app.js"></script>
 </body>
