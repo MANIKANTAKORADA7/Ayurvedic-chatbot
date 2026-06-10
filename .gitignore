@@ -1,0 +1,5 @@
+# Local environment variables (contains API key)
+.env
+
+# VS Code settings
+.vscode/
