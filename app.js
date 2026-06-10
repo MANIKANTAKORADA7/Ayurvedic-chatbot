@@ -17,26 +17,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const sidebar = document.getElementById("sidebar");
   const newChatBtn = document.getElementById("new-chat-btn");
   const historyList = document.getElementById("history-list");
-  
+
   // Header Elements
   const menuToggleBtn = document.getElementById("menu-toggle-btn");
   const themeToggleBtn = document.getElementById("theme-toggle-btn");
   const statusIndicatorText = document.getElementById("status-text");
   const statusDot = document.getElementById("status-dot");
-  
+
   // Settings Drawer Elements
   const settingsBtn = document.getElementById("settings-btn");
   const closeSettingsBtn = document.getElementById("close-settings-btn");
   const settingsDrawer = document.getElementById("settings-drawer");
   const drawerOverlay = document.getElementById("drawer-overlay");
-  
+
   // Settings Form Elements
   const aiModeToggle = document.getElementById("ai-mode-toggle");
   const apiKeyInput = document.getElementById("api-key-input");
   const clearHistoryBtn = document.getElementById("clear-history-btn");
   const exportTxtBtn = document.getElementById("export-txt-btn");
   const exportJsonBtn = document.getElementById("export-json-btn");
-  
+
   // Suggestion Chips
   const suggestionChips = document.querySelectorAll(".symptom-chip");
 
@@ -46,7 +46,7 @@ document.addEventListener("DOMContentLoaded", () => {
     isDarkMode = localStorage.getItem("ayur_dark_mode") === "true";
     isAiMode = localStorage.getItem("ayur_ai_mode") !== "false";
     geminiApiKey = localStorage.getItem("ayur_gemini_key") || "";
-    
+
     // Apply theme
     if (isDarkMode) {
       document.body.classList.add("dark-theme");
@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (aiModeToggle) aiModeToggle.checked = isAiMode;
     if (apiKeyInput) apiKeyInput.value = geminiApiKey;
     updateStatusIndicator();
-    
+
     // Attempt to load API Key from local environment file
     loadApiKeyFromEnv();
 
@@ -67,39 +67,38 @@ document.addEventListener("DOMContentLoaded", () => {
     loadChatSessions();
 
     // Event Listeners
-    sendBtn.addEventListener("click", handleSend);
-    chatInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
-      }
-    });
-    chatInput.addEventListener("input", updateCharCount);
-    
+    if (sendBtn) sendBtn.addEventListener("click", () => handleSend());
+    if (chatInput) {
+      chatInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          handleSend();
+        }
+      });
+      chatInput.addEventListener("input", updateCharCount);
+    }
+
     newChatBtn.addEventListener("click", () => startNewSession());
     menuToggleBtn.addEventListener("click", toggleSidebar);
     themeToggleBtn.addEventListener("click", toggleTheme);
-    
+
     // Settings Drawer Toggles
     settingsBtn.addEventListener("click", openSettings);
     closeSettingsBtn.addEventListener("click", closeSettings);
     drawerOverlay.addEventListener("click", closeSettings);
-    
+
     // Settings Actions
     if (aiModeToggle) aiModeToggle.addEventListener("change", handleAiModeChange);
     if (apiKeyInput) apiKeyInput.addEventListener("input", handleApiKeyInput);
     clearHistoryBtn.addEventListener("click", handleClearAllHistory);
     exportTxtBtn.addEventListener("click", () => exportConversation("txt"));
     exportJsonBtn.addEventListener("click", () => exportConversation("json"));
-    
+
     // Suggestion Chips Click
     suggestionChips.forEach(chip => {
       chip.addEventListener("click", () => {
         const symptom = chip.getAttribute("data-symptom");
-        chatInput.value = symptom;
-        chatInput.focus();
-        updateCharCount();
-        handleSend(); // Send immediately
+        handleSend(symptom); // Send immediately
       });
     });
 
@@ -113,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- UI Update Utilities ---
   function updateCharCount() {
+    if (!chatInput || !charCounter || !sendBtn) return;
     const len = chatInput.value.length;
     charCounter.textContent = `${len}/500`;
     sendBtn.disabled = len === 0;
@@ -173,12 +173,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function updateStatusIndicator() {
+    if (!statusIndicatorText || !statusDot) return;
     if (isAiMode && geminiApiKey) {
       statusIndicatorText.textContent = "Connected to Gemini";
       statusDot.className = "status-dot live";
       statusDot.style.backgroundColor = "";
     } else if (isAiMode) {
-      statusIndicatorText.textContent = "No API Key";
+      statusIndicatorText.textContent = "Active API Key";
       statusDot.className = "status-dot local";
       statusDot.style.backgroundColor = "var(--danger-color)";
     } else {
@@ -197,10 +198,10 @@ document.addEventListener("DOMContentLoaded", () => {
     toast.className = "toast";
     toast.textContent = message;
     document.body.appendChild(toast);
-    
+
     // Trigger slide-in
     setTimeout(() => toast.classList.add("show"), 50);
-    
+
     // Fade out
     setTimeout(() => {
       toast.classList.remove("show");
@@ -234,7 +235,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       chatSessions = [];
     }
-    
+
     renderHistoryList();
 
     if (chatSessions.length > 0) {
@@ -262,14 +263,14 @@ document.addEventListener("DOMContentLoaded", () => {
     saveSessionsToStorage();
     renderHistoryList();
     loadSessionMessages(currentSessionId);
-    
+
     // Close sidebar on mobile
     sidebar.classList.remove("open");
   }
 
   function loadSessionMessages(sessionId) {
     currentSessionId = sessionId;
-    
+
     // Update active class in sidebar list
     const items = historyList.querySelectorAll(".history-item");
     items.forEach(item => {
@@ -308,12 +309,12 @@ document.addEventListener("DOMContentLoaded", () => {
       const item = document.createElement("div");
       item.className = `history-item ${session.id === currentSessionId ? 'active' : ''}`;
       item.setAttribute("data-id", session.id);
-      
+
       const textSpan = document.createElement("span");
       textSpan.className = "history-item-text";
       textSpan.textContent = session.title;
       textSpan.addEventListener("click", () => loadSessionMessages(session.id));
-      
+
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "delete-history-btn";
       deleteBtn.innerHTML = `
@@ -392,7 +393,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (welcome) welcome.remove();
 
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    
+
     // Check if the content is a safety warning card text
     const isSafetyWarning = content.includes("⚠️ Please consult a doctor immediately.");
 
@@ -515,7 +516,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // --- Local Database Matcher ---
   function matchLocalRemedies(query) {
     const normalized = query.toLowerCase();
-    
+
     // We will assign a match score to each ailment
     let bestMatch = null;
     let highestScore = 0;
@@ -547,7 +548,7 @@ document.addEventListener("DOMContentLoaded", () => {
     REMEDY_DATABASE.forEach(item => {
       let score = 0;
       const terms = keywordMap[item.ailment] || [];
-      
+
       // Check for whole phrase match of ailment name
       if (normalized.includes(item.ailment.toLowerCase())) {
         score += 10;
@@ -577,13 +578,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (highestScore > 0 && bestMatch) {
       return formatAilmentMarkdown(bestMatch);
     }
-    
+
     return "I don't have verified information about that symptom. Please consult a doctor.";
   }
 
   function formatAilmentMarkdown(item) {
     let markdown = `🌿 ${item.ailment}\n\n`;
-    
+
     item.remedies.forEach((rem, index) => {
       markdown += `### Remedy ${index + 1}: ${rem.name}\n\n`;
       markdown += `Ingredients:\n`;
@@ -593,21 +594,21 @@ document.addEventListener("DOMContentLoaded", () => {
       markdown += `\nPreparation:\n${rem.preparation}\n\n`;
       markdown += `Usage:\n${rem.usage}\n\n`;
     });
-    
+
     markdown += `### When Not To Use\n${item.when_not_to_use}\n\n`;
     markdown += `### When To See A Doctor\n`;
     item.see_doctor_if.forEach(cond => {
       markdown += `* ${cond}\n`;
     });
     markdown += `\n⚠️ Disclaimer:\nFor informational purposes only. Not a substitute for medical advice.`;
-    
+
     return markdown;
   }
 
   // --- Gemini API Handler ---
   async function generateGeminiResponse(userMessage) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${geminiApiKey}`;
-    
+
     const systemInstruction = `You are an Ayurvedic Home Remedy Assistant.
 Your task is to suggest traditional, safe, and natural home remedies for minor ailments using common kitchen/household ingredients (e.g. Turmeric, Ginger, Honey, Tulsi, Ajwain, Jeera, Fennel, Aloe Vera, Coconut Oil, Salt, Lemon, Clove, Black Pepper).
 
@@ -693,13 +694,15 @@ For informational purposes only. Not a substitute for medical advice.`;
   }
 
   // --- Send Message Processing Flow ---
-  async function handleSend() {
-    const inputMsg = chatInput.value.trim();
+  async function handleSend(msgText) {
+    const inputMsg = (msgText || (chatInput ? chatInput.value : "")).trim();
     if (!inputMsg) return;
 
     // Clear input
-    chatInput.value = "";
-    updateCharCount();
+    if (chatInput) {
+      chatInput.value = "";
+      updateCharCount();
+    }
 
     // 1. Add User Message to UI & Session
     appendMessageUI("user", inputMsg);
@@ -709,7 +712,7 @@ For informational purposes only. Not a substitute for medical advice.`;
     const safetyCheck = checkSafetyConditions(inputMsg);
     if (!safetyCheck.safe) {
       const warningText = "⚠️ Please consult a doctor immediately. This chatbot does not provide remedies for serious medical conditions.";
-      
+
       // Delay slightly for natural feel
       const typingRow = appendTypingIndicator();
       setTimeout(() => {
@@ -739,7 +742,7 @@ For informational purposes only. Not a substitute for medical advice.`;
       removeTypingIndicator(typingRow);
       appendMessageUI("bot", botReply);
       saveMessageToSession("bot", botReply);
-      
+
       // Update session title in history list based on first user query
       updateSessionTitle(inputMsg);
     }
@@ -795,7 +798,7 @@ For informational purposes only. Not a substitute for medical advice.`;
         const sender = msg.role === "user" ? "YOU" : "BOT";
         fileContent += `[${sender}]:\n${msg.content}\n\n-----------------------------------------\n\n`;
       });
-      
+
       filename += ".txt";
     }
 
@@ -816,7 +819,7 @@ For informational purposes only. Not a substitute for medical advice.`;
     const lines = text.split('\n');
     let html = '';
     let inList = false;
-    
+
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i].trim();
       if (!line) {
@@ -826,12 +829,12 @@ For informational purposes only. Not a substitute for medical advice.`;
         }
         continue;
       }
-      
+
       // Symptom header
       if (line.startsWith('🌿')) {
         if (inList) { html += '</ul>\n'; inList = false; }
         html += `<h2 class="symptom-header">${line}</h2>\n`;
-      } 
+      }
       // Headings
       else if (line.startsWith('###')) {
         if (inList) { html += '</ul>\n'; inList = false; }
@@ -839,7 +842,7 @@ For informational purposes only. Not a substitute for medical advice.`;
       } else if (line.startsWith('##')) {
         if (inList) { html += '</ul>\n'; inList = false; }
         html += `<h2 class="remedy-title">${line.substring(2).trim()}</h2>\n`;
-      } 
+      }
       // Lists (Unordered)
       else if (line.startsWith('*') || line.startsWith('-')) {
         if (!inList) {
@@ -848,7 +851,7 @@ For informational purposes only. Not a substitute for medical advice.`;
         }
         const liContent = line.substring(1).trim();
         html += `<li>${parseInlineMarkdown(liContent)}</li>\n`;
-      } 
+      }
       // Disclaimer block
       else if (line.startsWith('⚠️ Disclaimer:')) {
         if (inList) { html += '</ul>\n'; inList = false; }
@@ -860,18 +863,18 @@ For informational purposes only. Not a substitute for medical advice.`;
           discContent += ' ' + lines[i].trim();
         }
         html += `${parseInlineMarkdown(discContent)}</div>\n`;
-      } 
+      }
       // Standard Paragraph
       else {
         if (inList) { html += '</ul>\n'; inList = false; }
         html += `<p>${parseInlineMarkdown(line)}</p>\n`;
       }
     }
-    
+
     if (inList) {
       html += '</ul>\n';
     }
-    
+
     return html;
   }
 
