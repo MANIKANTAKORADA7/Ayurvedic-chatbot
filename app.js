@@ -98,6 +98,10 @@ document.addEventListener("DOMContentLoaded", () => {
     suggestionChips.forEach(chip => {
       chip.addEventListener("click", () => {
         const symptom = chip.getAttribute("data-symptom");
+        if (chatInput) {
+          chatInput.value = symptom;
+          updateCharCount();
+        }
         handleSend(symptom); // Send immediately
       });
     });
@@ -112,9 +116,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- UI Update Utilities ---
   function updateCharCount() {
-    if (!chatInput || !charCounter || !sendBtn) return;
+    if (!chatInput || !sendBtn) return;
     const len = chatInput.value.length;
-    charCounter.textContent = `${len}/500`;
+    if (charCounter) {
+      charCounter.textContent = `${len}/500`;
+    }
     sendBtn.disabled = len === 0;
   }
 
